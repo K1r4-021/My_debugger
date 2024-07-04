@@ -1,0 +1,8 @@
+libdir=/home/Kira/Downloads/Debugger_Kir4/ext/libelfin/elf
+includedir=/home/Kira/Downloads/Debugger_Kir4/ext/libelfin/elf
+
+Name: libelf++
+Description: C++11 ELF library
+Version: 0.1-51-ge017276
+Libs: -L${libdir} -lelf++
+Cflags: -I${includedir}

@@ -1,0 +1,9 @@
+libdir=/home/Kira/Downloads/Debugger_Kir4/ext/libelfin/dwarf
+includedir=/home/Kira/Downloads/Debugger_Kir4/ext/libelfin/dwarf
+
+Name: libdwarf++
+Description: C++11 DWARF library
+Version: 0.1-51-ge017276
+Requires: libelf++ = 0.1-51-ge017276
+Libs: -L${libdir} -ldwarf++
+Cflags: -I${includedir}

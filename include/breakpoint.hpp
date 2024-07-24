@@ -15,7 +15,7 @@ class breakpoint
 
 public:
     breakpoint() = default;
-    breakpoint(pid_t d_pid, std::intptr_t addr) : pid(d_pid), b_address(addr), b_data(), enabled(false){};
+    breakpoint(pid_t d_pid, std::intptr_t addr) : pid(d_pid), b_address(addr), b_data(), enabled(false) {};
     int b_enable();
     void b_disable();
     bool is_b_enable() const { return enabled; }

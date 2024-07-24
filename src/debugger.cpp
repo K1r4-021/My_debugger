@@ -11,8 +11,30 @@ void debugger::handle_command(const std::string &line)
     auto command = args[0];
     if (command == "continue" || command == "c" || command == "cont")
         execute_continue();
-    // else if (command == "si" || command == "stepinto")
-    //     ptrace(PTRACE_SINGLESTEP, pid);
+    else if (command == "stepi")
+    {
+        single_step_instruction_over_breakpoint_check();
+        auto offset_pc = offset_load_address(get_rip(pid));
+        if (get_rip(pid) < load_addr)
+            uint64_t offset_pc = get_rip(pid);
+        auto line_entry = get_line_entry_from_pc(offset_pc);
+        print_source(line_entry->file->path, line_entry->line);
+    }
+    else if (command == "step")
+    {
+        if (args[1] == "into")
+            step_in();
+        if (args[1] == "out")
+            step_out();
+        if (args[1] == "over")
+            step_over();
+    }
+    else if (command == "ni")
+        step_over();
+    else if (command == "si")
+        step_in();
+    else if (command == "finish")
+        step_out();
     else if (command == "exit" || command == "exit()" || command == "q")
         execute_exit();
     else if (command == "bp" || command == "breakpoint")
@@ -56,9 +78,14 @@ void debugger::handle_command(const std::string &line)
                 std::cerr << "\x1b[31mInvalid argument\x1b[0m" << std::endl;
             }
         }
+        else if (args[1].find(':') != std::string::npos)
+        {
+            auto file_and_line = split(args[1], ':');
+            set_breakpoint_at_source_line(file_and_line[0], std::stol(file_and_line[1]));
+        }
         else
         {
-            std::cerr << "\x1b[31mInvalid argument\x1b[0m" << std::endl;
+            set_breakpoint_at_function(args[1]);
         }
     }
     else if (command == "dump")
@@ -69,12 +96,29 @@ void debugger::handle_command(const std::string &line)
     {
         if (args[1] == "breakpoint" || args[1] == "bp")
             info_breakpoints();
+        else if(args[1]=="variable")
+            read_variable();
     }
-    // else if (command=="delete")
-    // {
-    //     if(args[1]=="breakpoints")
-    //         delete_breakpoints();
-    // }
+    else if (command == "delete")
+    {
+        if (args[1] == "breakpoints" || args[1] == "bp")
+        {
+            std::vector<std::intptr_t> to_delete;
+            for (const auto &bp : breakpoints)
+            {
+                to_delete.push_back(bp.first);
+            }
+            for (const auto &key : to_delete)
+            {
+                delete_breakpoint(key);
+            }
+            to_delete.clear();
+            n = 1;
+            std::cout << "\x1b[38;5;76mBreakpoints deleted\x1b[0m" << std::endl;
+        }
+        else
+            std::cerr << "\x1b[35mUnknown Command.\x1b[0m";
+    }
     else if (command == "print")
     {
         std::string regi{args[1]};
@@ -85,21 +129,40 @@ void debugger::handle_command(const std::string &line)
         std::string val{args[2], 2};
         set_register_value(pid, get_register_from_name(args[1]), std::stol(val, 0, 16));
     }
+    else if (command == "symbol")
+    {
+        auto syms = lookup_symbol(args[1]);
+        for (auto &&s : syms)
+            std::cout << "\x1b[38;5;76m" << s.name << "\x1b[38;5;75m " << to_string(s.type) << "\x1b[38;5;160m 0x" << std::hex << s.addr << std::dec << "\x1b[0m" << std::endl;
+    }
+    else if (command == "backtrace")
+    {
+        backtrace();
+    }
     else if (command == "help")
     {
-        std::cout << "Debugger Commands:\n"
-                  << "  continue, c, cont           - Continue execution until the next breakpoint\n"
-                  //   << "  si, stepinto                - Step into the next instruction\n"
-                  << "  exit, exit(), q             - Exit the debugger\n"
-                  << "  bp, breakpoint <addr>       - Set a breakpoint at the specified address\n"
-                  << "    - Address can be in hex (0x...) or decimal\n"
-                  << "    - Address can be base+offset (e.g., base+0x100)\n"
-                  << "  dump                        - Dump the current state of the registers\n"
-                  << "  info breakpoint, info bp    - Show information about breakpoints\n"
-                  << "  print <register>            - Print the value of the specified register\n"
-                  << "  set <register> <value>      - Set the specified register to the given value\n"
-                  << "    - Value must be in hex (0x...)\n"
-                  << "  help                        - Show this help menu\n";
+        std::cout << "\x1b[38;5;160mDebugger Commands:\n"
+                  << "\x1b[38;5;27m  continue, c, cont                  \x1b[0m- Continue execution until the next breakpoint\n"
+                  << "\x1b[38;5;27m  stepi                              \x1b[0m- Single step instruction\n"
+                  << "\x1b[38;5;27m  si, step into                      \x1b[0m- Step into the next instruction\n"
+                  << "\x1b[38;5;27m  ni, step over                      \x1b[0m- Step over the next instruction\n"
+                  << "\x1b[38;5;27m  finish, step out                   \x1b[0m- Step out the next instruction\n"
+                  << "\x1b[38;5;27m  exit, exit(), q                    \x1b[0m- Exit the debugger\n"
+                  << "\x1b[38;5;27m  bp, breakpoint <addr>              \x1b[0m- Set a breakpoint at the specified address\n"
+                  << "    \x1b[0m- Address can be in hex (0x...) or decimal\n"
+                  << "    \x1b[0m- Address can be base+offset (e.g., base+0x100)\n"
+                  << "\x1b[38;5;27m  bp, breakpoint <line>:<filename>   \x1b[0m- Set a breakpoint at the specified line number\n"
+                  << "\x1b[38;5;27m  bp, breakpoint <function name>     \x1b[0m- Set a breakpoint at the specified function\n"
+                  << "\x1b[38;5;27m  dump                               \x1b[0m- Dump the current state of the registers\n"
+                  << "\x1b[38;5;27m  info breakpoint/bp                 \x1b[0m- Show information about breakpoints\n"
+                  << "\x1b[38;5;27m  delete breakpoints/bp              \x1b[0m- Delete all the breakpoints\n"
+                  << "\x1b[38;5;27m  print <register>                   \x1b[0m- Print the value of the specified register\n"
+                  << "\x1b[38;5;27m  set <register> <value>             \x1b[0m- Set the specified register to the given value\n"
+                  << "    \x1b[0m- Value must be in hex (0x...)\n"
+                  << "\x1b[38;5;27m  symbol <function>                  \x1b[0m-Print the symbol of function\n"
+                  << "    - if \"all\" is used instead of function name \x1b[0mit prints symbol of all sections\n"
+                  << "\x1b[38;5;27m  backtrace                          \x1b[0m-which gives you the chain of function calls\n"
+                  << "\x1b[38;5;27m  help                               \x1b[0m- Show this help menu\n";
     }
     else
         std::cerr << "\x1b[35mUnknown Command. Type \"help\" for help\x1b[0m\n";

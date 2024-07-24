@@ -52,9 +52,39 @@ bp, breakpoint <addr>
 Address can also be specified as `base+offset` (e.g., `base+0x100`).
 </aside>
 
+- Set a breakpoint at the specified line number.
+```bash
+bp, breakpoint <filename>:<line>
+```
+
+- Set a breakpoint at specified function.
+```bash
+bp, breakpoint <function name>
+```
+
 - Dump the current state of the registers.
 ```bash
 dump
+```
+
+- Single step instruction.
+```bash
+stepi
+```
+
+- Step into.
+```bash
+si, step into
+```
+
+- Step out.
+```bash
+finsh, step out
+```
+
+- Step over.
+```bash
+ni, step over
 ```
 
 - Print the value of the specified register name.
@@ -70,6 +100,29 @@ set <register> <value>
 - Show information about breakpoints.
 ```bash
 info breakpoint, info bp
+```
+
+- Delete breakpoints
+```bash
+delete breakpoints
+```
+
+- Print the symbol of function
+```bash
+symbol <function>
+```
+<aside>
+💡If all is used instead of function name, it prints symbol of all sections.
+</aside>
+
+- Print value of the variable
+```bash
+info variable
+```
+
+- Gives the chain of function calls.
+```bash
+backtrace
 ```
 
 - Show the help menu.
